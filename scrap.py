@@ -1,11 +1,13 @@
 from bs4 import BeautifulSoup
 from dateutil import parser
+from ics import Calendar, Event
+from utils import get_datetime
 import requests
 
 from competition import Competition
 
 comp_url = 'https://www.worldcubeassociation.org/competitions/PucallpaCubea2022'
-url = 'https://www.worldcubeassociation.org/competitions/DanishChampionship2022#competition-schedule'
+url = f'{comp_url}#competition-schedule'
 words_to_ignore = ['From', 'To', 'Format', 'Time limit', 'Cutoff', 'Proceed', '*', '**']
 page = requests.get(url, verify=False)
 soup = BeautifulSoup(page.content, 'html.parser')
@@ -17,7 +19,7 @@ for tag in h3_tags:
     sentence = tag.text.strip()
     if "(" in sentence and ")" in sentence:
         date = sentence[sentence.find('(') + 1:sentence.find(')')]
-        comp_dates.append(parser.parse(date))
+        comp_dates.append(date)
 
 comp_days = len(comp_dates)
 
@@ -34,6 +36,7 @@ for schedule in schedules:
             schedule_table_list.append(item)
 
     row_schedule = list()
+
     for item in schedule_table_list:
         stripped_item = list()
         for line in item.text.splitlines():
@@ -60,6 +63,20 @@ for schedule in schedules:
     comp_schedules.append(row_schedule)
 
 competition = Competition(comp_name, comp_dates, comp_schedules)
+
+c = Calendar()
+for i in range(0, competition.days):
+    # days
+    parsed_date = parser.parse(competition.dates[i])
+    for row in competition.schedules[i]:
+        e = Event()
+        e.name = row[2]
+        e.location = row[3]
+        e.begin = get_datetime(parsed_date, parser.parse(row[0]))
+        e.end = get_datetime(parsed_date, parser.parse(row[1]))
+        c.events.add(e)
+with open(f'{competition.name}.ics', 'w') as f:
+    f.writelines(c.serialize_iter())
 
 # 1 - start
 # 2 - end
